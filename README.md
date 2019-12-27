@@ -68,3 +68,5 @@ Reversing a subscription is switching roles between the primary and the replica:
 ```bash
 $ python manager.py reverse-subscription --help
 ```
+
+This will also overwrite your `.env` configuration and change the source DSN to the destination DSN and vice versa.
