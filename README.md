@@ -1,26 +1,69 @@
 # pg-logical-manager
-Manage PostgreSQL logical replication
+Manage logical replication for your PostgreSQL cluster. Simply create/drop/enable/disable/list subscriptions.
 
-## Local setup
-To test this:
+Includes other more risky but interesting abilities like:
+1. rewinding subscriptions, i.e. moving back and forth between LSNs,
+2. creating reverse subscriptions, i.e. send data from replica to primary instead; this is useful when the replica is promoted to primary and the primary should be kept up-to-date in case you want to switch them back.
 
-0. Have PostgreSQL 10 running or higher.
-1. Create databases "src"
-2. Create database "dest"
-3. Make sure you have local authentication working with no password (see hardcoded connection strings)
+## Setup
 
-Basically, make sure this works:
+### Virtual environment (recommended)
 
-```python
-src = psycopg2.connect('postgres://localhost:5432/src')
-dest = psycopg2.connect('postgres://localhost:5432/dest')
+1. `pip install virtualenv`
+2. `pip install -r requirements.txt`
+3. `virtualenv venv --python=python3`
+4. `source .venv/bin/activate`
+
+### Configuration
+
+```bash
+$ python manage.py configure --source=postgres://user:password@primary-db:5432/database --destination=postgres://user:password@replica-db:5432/database
+```
+
+This will write a `.env` file in the same folder as `manager.py`. It will contain the DSNs above.
+
+### Make sure it works
+
+```bash
+$ python manager.py list-subscriptions
 ```
 
 ## Usage
 
-Use the menu:
+Check out the help menu:
 
 ```bash
-$ pip3 install requirements.txt
-$ python3 manager.py --help
+$ python manager.py --help
+```
+
+## Features
+
+### Basic features
+
+You can easily list, create, drop, disable, and enable subscriptions. These sit directly on top of Postgres primitives (i.e. `CREATE SUBSCRIPTION`, `DROP SUBSCRIPTION`, etc.) and are fairly well-known.
+
+### Advanced (read risky) features
+
+Logical replication is powerful and flexible, and it allows you to do things binary replication can't do. Two features we found useful and which are implemented here are:
+
+1. Rewind subscription to specific LSN.
+2. Reverse subscriptions.
+
+#### Rewind subscription
+
+Rewiding a subscription makes it replicate from a paritcular point-in-time. This works like `pg_rewind` except on a live cluster and without changing the WAL timeline. Note: _this is pretty dangerous_. If you rewind it to a wrong spot, you could create conflicts (unique contraint violations, for example) and the replication can break.
+
+```bash
+$ python manager.py rewind-subscription --help
+```
+
+TODO: Document use cases.
+
+#### Reverse subscription
+
+Reversing a subscription is switching roles between the primary and the replica: the replica becomes the primary and the primary becomes the replica. This makes sense if you are promoting the replica to become the new primary and you want the old primary to be kept around for backup/rollback purposes. This is not as risky as rewinding, but it is irreverisble: once done, the replica must be the source for all writes, otherwise a split brain situation will be created.
+
+
+```bash
+$ python manager.py reverse-subscription --help
 ```
