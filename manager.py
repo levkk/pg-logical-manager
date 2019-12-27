@@ -5,6 +5,7 @@ import psycopg2.extras # DictCursor
 from colorama import Fore, Style # Colors in terminal
 from prettytable import PrettyTable # Pretty table output
 from time import sleep
+import click
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
 __version__ = 0.1
@@ -96,6 +97,14 @@ class ReplicationSlot:
             self.conn.commit()
 
         self.exists = False
+
+    def refresh(self):
+        slot = ReplicationSlots(self.conn).get(self.name)
+
+        if slot is not None:
+            self.__dict__.update(slot.__dict__)
+        else:
+            self.exists = False
 
     def to_list(self):
         return [self.name, self.plugin, self.slot_type, self.confirmed_flush_lsn]
@@ -243,7 +252,7 @@ class Subscription:
         self.dest = None
 
     @classmethod
-    def create(cls, src, dest, name, copy_data=False):
+    def create(cls, src, dest, name, copy_data=False, enabled=True):
         slot_name = f'{name}_slot'
         publication_name = f'{name}_publication'
 
@@ -256,7 +265,8 @@ class Subscription:
             dest.rollback() # Flush all existing transactions
             dest.set_session(autocommit=True)
             copy_data = str(copy_data).lower()
-            query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication_name} WITH (copy_data = {copy_data}, slot_name = {slot_name}, create_slot = false)'
+            enabled = str(enabled).lower()
+            query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication_name} WITH (copy_data = {copy_data}, slot_name = {slot_name}, create_slot = false, enabled = {enabled})'
 
             _debug(dest.cursor().mogrify(query, (src.dsn,)).decode('utf-8'))
 
@@ -322,6 +332,28 @@ class Subscription:
         _unlock(self.src)
         _unlock(self.dest)
 
+    def replication_lag(self):
+        query1 = 'SELECT pg_current_wal_lsn()'
+        query2 = 'SELECT (%s::pg_lsn - %s::pg_lsn) AS replication_lag'
+        cursor = self.src.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        _debug(query1)
+        cursor.execute(query1)
+
+        lsn = cursor.fetchone()['pg_current_wal_lsn']
+
+        self.slot.refresh()
+
+        flushed_lsn = self.slot.confirmed_flush_lsn
+
+        _debug(cursor.mogrify(query2, (lsn, flushed_lsn)))
+        cursor.execute(query2, (lsn, flushed_lsn))
+
+        lag = cursor.fetchone()['replication_lag']
+
+        return lag
+
+
     @classmethod
     def from_row(cls, src, dest, row):
         slot = ReplicationSlots(src).get(row['subslotname'])
@@ -347,7 +379,7 @@ class Subscription:
         return obj
 
     def to_list(self):
-        return [self.name, self.enabed, self.dsn, self.slot.name, self.publication.name]
+        return [self.name, self.enabed, self.dsn, self.slot.name, self.publication.name, self.replication_lag(), self.slot.confirmed_flush_lsn]
 
 
 class Subscriptions:
@@ -363,18 +395,19 @@ class Subscriptions:
     def show(self):
         self.refresh()
 
-        print(Fore.GREEN)
-        print('\nSubscriptions\n')
-
         if len(self.subscriptions) == 0:
+            print(Fore.GREEN)
+            print('\nSubscriptions\n')
             print('No subscriptions found.')
         else:
-            table = PrettyTable(['Subscription name', 'Enabled', 'DSN', 'Slot Name', 'Publication'])
+            table = PrettyTable(['Subscription name', 'Enabled', 'DSN', 'Slot Name', 'Publication', 'Replication Lag', 'Flushed LSN'])
 
             for subscription in self.subscriptions:
                 table.add_row(subscription.to_list())
 
-            print(table)
+            print(Fore.GREEN)
+            print('\nSubscriptions\n')
+            print(Fore.GREEN, table)
 
         print(Style.RESET_ALL)
 
@@ -493,29 +526,80 @@ class ReplicationOrigins:
 src = psycopg2.connect('postgres://localhost:5432/src')
 dest = psycopg2.connect('postgres://localhost:5432/dest')
 
-# Check we have nothing
-Subscriptions(src, dest).show()
-Publications(src).show()
-ReplicationSlots(src).show()
-ReplicationOrigins(src).show()
+@click.group()
+def main():
+    '''PostgreSQL logical replication manager'''
+    pass
 
-# Create subscription
-sub = Subscription.create(src, dest, 'test_sub')
+@main.command()
+def list_subscriptions():
+    '''List all current subscriptions.'''
+    Subscriptions(src, dest).show()
 
-# Prove that we did it
-Subscriptions(src, dest).show()
-Publications(src).show()
-ReplicationSlots(src).show()
-ReplicationOrigins(src).show()
+@main.command()
+@click.argument('name')
+@click.option('--enabled/--disabled', default=True, help='Start the subscription right after creation. Default is yes.')
+@click.option('--copy-data/--no-copy', default=False, help='Copy all existing data from publisher to subscriber. Default is no.')
+def create_subscription(name, enabled, copy_data):
+    '''Create a logical replication subscription.'''
+    Subscription.create(src, dest, name, copy_data=copy_data, enabled=enabled)
 
-# This will rewind the subscription to where it is already.
-ReplicationOrigins(src).last().rewind(sub.slot.confirmed_flush_lsn, sub)
+@main.command()
+@click.argument('name')
+def drop_subscription(name):
+    '''Drop a logical replication subscription. This will stop the replication immediately.'''
+    sub = Subscriptions(src, dest).get(name)
 
-# Drop everything
-sub.drop()
+    if sub is None:
+        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+    else:
+        sub.drop()
 
-# Show everthing
-Subscriptions(src, dest).show()
-Publications(src).show()
-ReplicationSlots(src).show()
-ReplicationOrigins(src).show()
+@main.command()
+@click.argument('name')
+def enable_subscription(name):
+    '''Enable a logical replication subscription.'''
+    sub = Subscriptions(src, dest).get(name)
+
+    if sub is None:
+        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+    else:
+        sub.enable()
+
+@main.command()
+@click.argument('name')
+def disable_subscription(name):
+    '''Disable a logical replication subscription.'''
+    sub = Subscriptions(src, dest).get(name)
+
+    if sub is None:
+        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+    else:
+        sub.disable()
+
+
+@main.command()
+def list_replication_origins():
+    '''Show all replication origins.'''
+    ReplicationOrigins(src).show()
+
+@main.command()
+@click.argument('origin')
+@click.option('--subscription', '-s', help='The name of the logical subscription using this origin.')
+@click.option('--lsn', '-l', help='The WAL offset (LSN) to rewind to. Example: 0/16EDE8A0')
+def rewind_replication_origin(origin, subscription, lsn):
+    '''Rewind logical subscription to LSN. Very dangerous.'''
+    origin = ReplicationOrigins(src).get(origin)
+    sub = Subscriptions(src, dest).get(subscription)
+
+    if origin is None:
+        print(Fore.GREEN, f'No origin with name {name} exists.', Style.RESET_ALL)
+    elif subscription is None:
+        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+    else:
+        origin.rewind(lsn, sub)
+
+
+if __name__ == '__main__':
+    main()
+
