@@ -351,7 +351,7 @@ class Subscription:
 
         flushed_lsn = self.slot.confirmed_flush_lsn
 
-        _debug(cursor.mogrify(query2, (lsn, flushed_lsn)))
+        _debug(cursor.mogrify(query2, (lsn, flushed_lsn)).decode('utf-8'))
         cursor.execute(query2, (lsn, flushed_lsn))
 
         lag = cursor.fetchone()['replication_lag']
