@@ -17,6 +17,12 @@ Replication Slots
 
 No replication slots found.
 
+
+
+Replication Origins
+
+No replication origins found.
+
 psql:  SELECT pg_create_logical_replication_slot('test_sub_slot', 'pgoutput') 
 psql:  CREATE PUBLICATION test_sub_publication FOR ALL TABLES 
 psql:  CREATE SUBSCRIPTION test_sub CONNECTION 'postgres://localhost:5432/src' PUBLICATION test_sub_publication WITH (copy_data = false, slot_name = test_sub_slot, create_slot = false) 
@@ -47,9 +53,25 @@ Replication Slots
 +---------------+----------+-----------+-------------+
 |   Slot name   |  Plugin  | Slot Type | Flushed LSN |
 +---------------+----------+-----------+-------------+
-| test_sub_slot | pgoutput |  logical  |  0/16E8A2D0 |
+| test_sub_slot | pgoutput |  logical  |  0/16ED01C8 |
 +---------------+----------+-----------+-------------+
 
+
+
+Replication Origins
+
++-----------+
+|    Name   |
++-----------+
+| pg_138391 |
++-----------+
+
+This is a very dangerous operation. Are you sure? [Y/n]: Y
+Please confirm you want this LSN 0/16ED01C8. [Y/n]: Y
+psql:  ALTER SUBSCRIPTION test_sub DISABLE 
+Giving the replication worker 5 seconds to shut down...
+psql:  SELECT pg_replication_origin_advance('pg_138391', '0/16ED01C8') 
+psql:  ALTER SUBSCRIPTION test_sub ENABLE 
 psql:  ALTER SUBSCRIPTION test_sub DISABLE 
 psql:  ALTER SUBSCRIPTION test_sub SET (slot_name = NONE) 
 psql:  DROP SUBSCRIPTION test_sub 
@@ -72,5 +94,11 @@ No publications found.
 Replication Slots
 
 No replication slots found.
+
+
+
+Replication Origins
+
+No replication origins found.
 
 (venv) Lev-Laptop:pg-logical-manager levkokotov$ 

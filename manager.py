@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras # DictCursor
 from colorama import Fore, Style # Colors in terminal
 from prettytable import PrettyTable # Pretty table output
+from time import sleep
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
 __version__ = 0.1
@@ -221,10 +222,11 @@ class Subscription:
 
     @classmethod
     def create(cls, src, dest, name, copy_data=False):
-        slot = ReplicationSlot.create(src, f'{name}_slot')
-        dest.commit()
-        publication = Publication.create(src, f'{name}_publication')
-        dest.commit()
+        slot_name = f'{name}_slot'
+        publication_name = f'{name}_publication'
+
+        ReplicationSlot.create(src, slot_name)
+        Publication.create(src, publication_name)
 
         subscription = Subscriptions(src, dest).get(name)
 
@@ -232,7 +234,7 @@ class Subscription:
             dest.rollback() # Flush all existing transactions
             dest.set_session(autocommit=True)
             copy_data = str(copy_data).lower()
-            query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication.name} WITH (copy_data = {copy_data}, slot_name = {slot.name}, create_slot = false)'
+            query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication_name} WITH (copy_data = {copy_data}, slot_name = {slot_name}, create_slot = false)'
 
             _debug(dest.cursor().mogrify(query, (src.dsn,)).decode('utf-8'))
 
@@ -243,8 +245,8 @@ class Subscription:
         obj.name = name
         obj.enabled = True
         obj.dsn = src.dsn
-        obj.slot = slot
-        obj.publication = publication
+        obj.slot = ReplicationSlots(src).get(slot_name)
+        obj.publication = Publications(src).get(publication_name)
         obj.src = src
         obj.dest = dest
 
@@ -268,6 +270,28 @@ class Subscription:
 
         self.slot.drop()
         self.publication.drop()
+
+    def disable(self):
+        subscription = Subscriptions(self.src, self.dest).get(self.name)
+
+        if subscription is not None:
+            query = f'ALTER SUBSCRIPTION {self.name} DISABLE'
+
+            _debug(query)
+            self.dest.cursor().execute(query)
+            self.dest.commit()
+
+        self.enabed = False
+
+    def enable(self):
+        subscription = Subscriptions(self.src, self.dest).get(self.name)
+
+        if subscription is not None:
+            query = f'ALTER SUBSCRIPTION {self.name} ENABLE'
+
+            _debug(query)
+            self.dest.cursor().execute(query)
+            self.dest.commit()
             
 
     @classmethod
@@ -335,6 +359,94 @@ class Subscriptions:
         return None
 
 
+class ReplicationOrigin:
+    def __init__(self, conn):
+        self.conn = conn
+        self.name = None
+
+    @classmethod
+    def from_row(cls, conn, row):
+        obj = cls(conn)
+        obj.name = row['roname']
+
+        return obj
+
+    def rewind(self, lsn: str, subscription: Subscription):
+        if lsn is None:
+            raise Exception('Cannot rewind replication origin to a NULL LSN.')
+
+        sure = input(Fore.RED + '\bThis is a very dangerous operation. Are you sure? [Y/n]: ' + Style.RESET_ALL)
+        if sure.strip() != 'Y':
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.\n')
+        else:
+            lsn_correct = input(Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
+            if lsn_correct.strip() != 'Y':
+                print(Fore.RED, '\bAborting. Come back when you\'re sure.')
+            else:
+                query = 'SELECT pg_replication_origin_advance(%s, %s)'
+
+                subscription.disable()
+
+                print(Fore.GREEN, '\bGiving the replication worker 5 seconds to shut down...')
+                sleep(5.0)
+
+                self.conn.rollback() # Flush all transactions
+                self.conn.set_session(autocommit=True)
+                _debug(self.conn.cursor().mogrify(query, (self.name, lsn)).decode('utf-8'))
+                self.conn.cursor().execute(query, (self.name, lsn))
+                self.conn.set_session(autocommit=False)
+                subscription.enable()
+
+    def to_list(self):
+        return [self.name]
+
+
+class ReplicationOrigins:
+    def __init__(self, conn):
+        self.conn = conn
+        self.cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        self.origins = []
+
+    def refresh(self):
+        self.cursor.execute('SELECT * FROM pg_replication_origin')
+        self.origins = [ReplicationOrigin.from_row(self.conn, row) for row in self.cursor.fetchall()]
+
+    def show(self):
+        self.refresh()
+
+        print(Fore.GREEN)
+        print('\nReplication Origins\n')
+
+        if len(self.origins) == 0:
+            print('No replication origins found.')
+        else:
+            table = PrettyTable(['Name'])
+
+            for origin in self.origins:
+                table.add_row(origin.to_list())
+
+            print(table)
+
+        print(Style.RESET_ALL)
+
+    def get(self, name):
+        self.refresh()
+        for origin in self.origins:
+            print(origin.name, name)
+            if origin.name == name:
+                return origin
+        return None
+
+    def last(self):
+        '''Get the last replication origin created.'''
+        self.refresh()
+
+        if len(self.origins) == 0:
+            print(Fore.GREEN, 'No replication origins available.', Style.RESET_ALL)
+        else:
+            return self.origins[-1]
+
+
 src = psycopg2.connect('postgres://localhost:5432/src')
 dest = psycopg2.connect('postgres://localhost:5432/dest')
 
@@ -342,18 +454,28 @@ dest = psycopg2.connect('postgres://localhost:5432/dest')
 Subscriptions(src, dest).show()
 Publications(src).show()
 ReplicationSlots(src).show()
+ReplicationOrigins(src).show()
 
+# Create subscription
 sub = Subscription.create(src, dest, 'test_sub')
+
+# Prove that we did it
 Subscriptions(src, dest).show()
 Publications(src).show()
 ReplicationSlots(src).show()
+ReplicationOrigins(src).show()
+
+# This will rewind the subscription to where it is already.
+ReplicationOrigins(src).last().rewind(sub.slot.confirmed_flush_lsn, sub)
 
 # Drop everything
 sub.drop()
 
+# Show everthing
 Subscriptions(src, dest).show()
 Publications(src).show()
 ReplicationSlots(src).show()
+ReplicationOrigins(src).show()
 
 # try:
 #     create_logical_repl_slot(cur, 'test_slot')
