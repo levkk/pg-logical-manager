@@ -10,14 +10,14 @@ Includes other more risky but interesting abilities like:
 ### Virtual environment (recommended)
 
 1. `pip install virtualenv`
-2. `pip install -r requirements.txt`
-3. `virtualenv venv --python=python3`
-4. `source .venv/bin/activate`
+2. `virtualenv venv --python=python3`
+3. `source .venv/bin/activate`
+4. `pip install -r requirements.txt`
 
 ### Configuration
 
 ```bash
-$ python manage.py configure --source=postgres://user:password@primary-db:5432/database --destination=postgres://user:password@replica-db:5432/database
+$ python manager.py configure --source=postgres://user:password@primary-db:5432/database --destination=postgres://user:password@replica-db:5432/database
 ```
 
 This will write a `.env` file in the same folder as `manager.py`. It will contain the DSNs above.
@@ -46,15 +46,16 @@ You can easily list, create, drop, disable, and enable subscriptions. These sit 
 
 Logical replication is powerful and flexible, and it allows you to do things binary replication can't do. Two features we found useful and which are implemented here are:
 
-1. Rewind subscription to specific LSN.
-2. Reverse subscriptions.
+1. rewind subscription to specific LSN,
+2. reverse subscriptions.
 
 #### Rewind subscription
 
-Rewiding a subscription makes it replicate from a paritcular point-in-time. This works like `pg_rewind` except on a live cluster and without changing the WAL timeline. Note: _this is pretty dangerous_. If you rewind it to a wrong spot, you could create conflicts (unique contraint violations, for example) and the replication can break.
+Rewinding a subscription makes it replicate from a paritcular point-in-time. This works like `pg_rewind` except on a live cluster and without changing the WAL timeline. Note: _this is pretty dangerous_. If you rewind it to a wrong spot, you could create conflicts (unique contraint violations, for example) and the replication can break.
 
 ```bash
-$ python manager.py rewind-subscription --help
+$ python manager.py list-replication-origins
+$ python manager.py rewind-replication-origin --help
 ```
 
 TODO: Document use cases.
