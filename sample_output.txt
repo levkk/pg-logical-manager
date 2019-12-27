@@ -53,7 +53,7 @@ Replication Slots
 +---------------+----------+-----------+-------------+
 |   Slot name   |  Plugin  | Slot Type | Flushed LSN |
 +---------------+----------+-----------+-------------+
-| test_sub_slot | pgoutput |  logical  |  0/16ED01C8 |
+| test_sub_slot | pgoutput |  logical  |  0/16EDE8A0 |
 +---------------+----------+-----------+-------------+
 
 
@@ -63,15 +63,19 @@ Replication Origins
 +-----------+
 |    Name   |
 +-----------+
-| pg_138391 |
+| pg_138397 |
 +-----------+
 
 This is a very dangerous operation. Are you sure? [Y/n]: Y
-Please confirm you want this LSN 0/16ED01C8. [Y/n]: Y
+Please confirm you want this LSN 0/16EDE8A0. [Y/n]: Y
+psql:  SELECT pg_try_advisory_lock(53365016334656532) 
+psql:  SELECT pg_try_advisory_lock(53365016334656532) 
 psql:  ALTER SUBSCRIPTION test_sub DISABLE 
 Giving the replication worker 5 seconds to shut down...
-psql:  SELECT pg_replication_origin_advance('pg_138391', '0/16ED01C8') 
+psql:  SELECT pg_replication_origin_advance('pg_138397', '0/16EDE8A0') 
 psql:  ALTER SUBSCRIPTION test_sub ENABLE 
+psql:  SELECT pg_advisory_unlock(53365016334656532) 
+psql:  SELECT pg_advisory_unlock(53365016334656532) 
 psql:  ALTER SUBSCRIPTION test_sub DISABLE 
 psql:  ALTER SUBSCRIPTION test_sub SET (slot_name = NONE) 
 psql:  DROP SUBSCRIPTION test_sub 
@@ -101,4 +105,4 @@ Replication Origins
 
 No replication origins found.
 
-(venv) Lev-Laptop:pg-logical-manager levkokotov$ 
+(venv) Lev-Laptop:pg-logical-manager levkokotov$

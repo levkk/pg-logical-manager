@@ -12,6 +12,28 @@ __version__ = 0.1
 def _debug(query):
     print(Fore.BLUE, '\bpsql: ', query, Style.RESET_ALL)
 
+def _lock_key():
+    return int(''.join(map(lambda x: str(ord(x) % 7), list('pg-logical-manager'))))
+
+def _lock(conn):
+    key = _lock_key()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT pg_try_advisory_lock(%s)"
+
+    _debug(cursor.mogrify(query, (key,)).decode('utf-8'))
+    cursor.execute(query, (key,))
+
+    return cursor.fetchone()['pg_try_advisory_lock']
+
+def _unlock(conn):
+    key = _lock_key()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT pg_advisory_unlock(%s)"
+
+    _debug(cursor.mogrify(query, (key,)).decode('utf-8'))
+    cursor.execute(query, (key,))
+
+
 class ReplicationSlot:
     @classmethod
     def from_row(cls, conn, row):
@@ -292,7 +314,13 @@ class Subscription:
             _debug(query)
             self.dest.cursor().execute(query)
             self.dest.commit()
-            
+
+    def lock(self):
+       return _lock(self.src) and _lock(self.dest)
+
+    def unlock(self):
+        _unlock(self.src)
+        _unlock(self.dest)
 
     @classmethod
     def from_row(cls, src, dest, row):
@@ -372,30 +400,45 @@ class ReplicationOrigin:
         return obj
 
     def rewind(self, lsn: str, subscription: Subscription):
+        # Check LSN
         if lsn is None:
             raise Exception('Cannot rewind replication origin to a NULL LSN.')
 
+        # Are you sure?
         sure = input(Fore.RED + '\bThis is a very dangerous operation. Are you sure? [Y/n]: ' + Style.RESET_ALL)
         if sure.strip() != 'Y':
             print(Fore.RED, '\bAborting. Come back when you\'re sure.\n')
-        else:
-            lsn_correct = input(Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
-            if lsn_correct.strip() != 'Y':
-                print(Fore.RED, '\bAborting. Come back when you\'re sure.')
-            else:
-                query = 'SELECT pg_replication_origin_advance(%s, %s)'
+            return
 
-                subscription.disable()
+        # Check LSN with user
+        lsn_correct = input(Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
+        if lsn_correct.strip() != 'Y':
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.')
+            return
 
-                print(Fore.GREEN, '\bGiving the replication worker 5 seconds to shut down...')
-                sleep(5.0)
+        # Make sure no one else is doing this
+        locked = subscription.lock()
 
-                self.conn.rollback() # Flush all transactions
-                self.conn.set_session(autocommit=True)
-                _debug(self.conn.cursor().mogrify(query, (self.name, lsn)).decode('utf-8'))
-                self.conn.cursor().execute(query, (self.name, lsn))
-                self.conn.set_session(autocommit=False)
-                subscription.enable()
+        if not locked:
+            print(Fore.RED, '\bCould not acquire locks on source and destination DBs. Is there another instance of this app running?', Style.RESET_ALL)
+            return
+
+        # Ok go
+        query = 'SELECT pg_replication_origin_advance(%s, %s)'
+
+        subscription.disable()
+
+        print(Fore.GREEN, '\bGiving the replication worker 5 seconds to shut down...')
+        sleep(5.0)
+
+        self.conn.rollback() # Flush all transactions
+        self.conn.set_session(autocommit=True)
+        _debug(self.conn.cursor().mogrify(query, (self.name, lsn)).decode('utf-8'))
+        self.conn.cursor().execute(query, (self.name, lsn))
+        self.conn.set_session(autocommit=False)
+        subscription.enable()
+
+        subscription.unlock()
 
     def to_list(self):
         return [self.name]
