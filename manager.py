@@ -358,6 +358,41 @@ class Subscription:
 
         return lag
 
+    def reverse(self):
+        '''Publisher becomes subscriber, subscriber become publisher.'''
+        sure = input(Fore.RED + '\bThis is irreversible. Are you sure? [Y/n]: ' + Style.RESET_ALL)
+
+        if sure != 'Y':
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.')
+            return
+
+        replication_lag = self.replication_lag()
+
+        if replication_lag != 0:
+            proceed = input(Fore.RED + f'\bReplication lag is {replication_lag}, are you sure you want to proceed? [Y/n]: ' + Style.RESET_ALL)
+
+            if proceed != 'Y':
+                print(Fore.RED, '\bAborting. Good call.', Style.RESET_ALL)
+                return
+
+        self.drop()
+
+        dest = self.dest
+        src = self.src
+
+        # Note that src is now dest, and dest is now src.
+        subscription = Subscription.create(dest, src, f'{self.name}_reversed', copy_data=False, enabled=True)
+
+        self.slot = subscription.slot
+        self.publication = subscription.publication
+        self.name = subscription.name
+        self.src = dest
+        self.dest = src
+        self.dsn = self.src.dsn
+        self.enabled = True
+
+        # Reverse the configuration
+        _write_config(self.src.dsn, self.dest.dsn)
 
     @classmethod
     def from_row(cls, src, dest, row):
@@ -522,13 +557,9 @@ class ReplicationOrigins:
         self.refresh()
 
         if len(self.origins) == 0:
-            print(Fore.GREEN, 'No replication origins available.', Style.RESET_ALL)
+            print(Fore.GREEN, '\bNo replication origins available.', Style.RESET_ALL)
         else:
             return self.origins[-1]
-
-
-# src = psycopg2.connect('postgres://localhost:5432/src')
-# dest = psycopg2.connect('postgres://localhost:5432/dest')
 
 def _ensure_connected():
     src_dsn = os.getenv('SOURCE_DB_DSN')
@@ -577,7 +608,7 @@ def drop_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.drop()
 
@@ -589,7 +620,7 @@ def enable_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.enable()
 
@@ -601,10 +632,9 @@ def disable_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.disable()
-
 
 @main.command()
 def list_replication_origins():
@@ -623,20 +653,45 @@ def rewind_replication_origin(origin, subscription, lsn):
     sub = Subscriptions(src, dest).get(subscription)
 
     if origin is None:
-        print(Fore.GREEN, f'No origin with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN, f'\bNo origin with name {name} exists.', Style.RESET_ALL)
     elif subscription is None:
-        print(Fore.GREEN, f'No subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         origin.rewind(lsn, sub)
+
+@main.command()
+@click.argument('name')
+def reverse_subscription(name):
+    '''Reverse the subscription. Source becomes destination, destination becomes source.
+    Useful when primary becomes the replica and replica is promoted to primary.'''
+    src, dest = _ensure_connected()
+    sub = Subscriptions(src, dest).get(name)
+
+    if sub is None:
+        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+    else:
+        sub.reverse()
+
+def _write_config(source, destination):
+    with open('./.env', 'w') as file:
+        file.write(f'SOURCE_DB_DSN={source}\n')
+        file.write(f'DEST_DB_DSN={destination}\n')
 
 
 @main.command()
 @click.option('--source', '-s', help='DSN for the source database, i.e. the primary.', required=True)
 @click.option('--destination', '-s', help='DSN for the destination database, i.e. the replica.', required=True)
 def configure(source, destination):
-    with open('./.env', 'w') as file:
-        file.write(f'SOURCE_DB_DSN={source}\n')
-        file.write(f'DEST_DB_DSN={destination}\n')
+    _write_config(source, destination)
+
+
+@main.command()
+def reverse_configuration():
+    '''Change source to destination and vice versa. Useful when debugging reversed subscriptions.'''
+    src, dest = _ensure_connected()
+    _write_config(dest.dsn, src.dsn)
+    load_dotenv(override=True)
+    src, dest = _ensure_connected()
 
 if __name__ == '__main__':
     main()
