@@ -6,9 +6,14 @@ from colorama import Fore, Style # Colors in terminal
 from prettytable import PrettyTable # Pretty table output
 from time import sleep
 import click
+from dotenv import load_dotenv
+import os
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
 __version__ = 0.1
+
+# Load environment variables from .env
+load_dotenv()
 
 def _debug(query):
     print(Fore.BLUE, '\bpsql: ', query, Style.RESET_ALL)
@@ -365,7 +370,7 @@ class Subscription:
         publication = Publications(src).get(row['subpublications'][0])
 
         if publication is None:
-            raise Exception(f'No publication on destiation {src.dsn} exists.')
+            raise Exception(f'No publication on destination {src.dsn} exists.')
 
         obj = cls()
         obj.name = row['subname']
@@ -440,13 +445,13 @@ class ReplicationOrigin:
         # Are you sure?
         sure = input(Fore.RED + '\bThis is a very dangerous operation. Are you sure? [Y/n]: ' + Style.RESET_ALL)
         if sure.strip() != 'Y':
-            print(Fore.RED, '\bAborting. Come back when you\'re sure.\n')
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.\n', Style.RESET_ALL)
             return
 
         # Check LSN with user
         lsn_correct = input(Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
         if lsn_correct.strip() != 'Y':
-            print(Fore.RED, '\bAborting. Come back when you\'re sure.')
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.', Style.RESET_ALL)
             return
 
         # Make sure no one else is doing this
@@ -508,7 +513,6 @@ class ReplicationOrigins:
     def get(self, name):
         self.refresh()
         for origin in self.origins:
-            print(origin.name, name)
             if origin.name == name:
                 return origin
         return None
@@ -523,8 +527,27 @@ class ReplicationOrigins:
             return self.origins[-1]
 
 
-src = psycopg2.connect('postgres://localhost:5432/src')
-dest = psycopg2.connect('postgres://localhost:5432/dest')
+# src = psycopg2.connect('postgres://localhost:5432/src')
+# dest = psycopg2.connect('postgres://localhost:5432/dest')
+
+def _ensure_connected():
+    src_dsn = os.getenv('SOURCE_DB_DSN')
+    dest_dsn = os.getenv('DEST_DB_DSN')
+
+    try:
+        print(Fore.BLUE, '\bConnecting to source and destination databases...', Style.RESET_ALL)
+        src = psycopg2.connect(src_dsn, connect_timeout=5)
+        dest = psycopg2.connect(dest_dsn, connect_timeout=5)
+        print(Fore.BLUE, '\bConnection established.', Style.RESET_ALL)
+    except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError):
+        print(Fore.RED, '\bCould not connect to source/destination DB. Make sure they are reachable and the DSN is correct.', Style.RESET_ALL)
+        exit(1)
+    finally:
+        print(Fore.BLUE, f'\bSource (primary): {src_dsn}', Style.RESET_ALL)
+        print(Fore.BLUE, f'\bDestination (replica): {dest_dsn}', Style.RESET_ALL)
+
+    # Never mix them up, heh.
+    return src, dest
 
 @click.group()
 def main():
@@ -534,6 +557,7 @@ def main():
 @main.command()
 def list_subscriptions():
     '''List all current subscriptions.'''
+    src, dest = _ensure_connected()
     Subscriptions(src, dest).show()
 
 @main.command()
@@ -548,6 +572,7 @@ def create_subscription(name, enabled, copy_data):
 @click.argument('name')
 def drop_subscription(name):
     '''Drop a logical replication subscription. This will stop the replication immediately.'''
+    src, dest = _ensure_connected()
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
@@ -559,6 +584,7 @@ def drop_subscription(name):
 @click.argument('name')
 def enable_subscription(name):
     '''Enable a logical replication subscription.'''
+    src, dest = _ensure_connected()
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
@@ -570,6 +596,7 @@ def enable_subscription(name):
 @click.argument('name')
 def disable_subscription(name):
     '''Disable a logical replication subscription.'''
+    src, dest = _ensure_connected()
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
@@ -581,14 +608,16 @@ def disable_subscription(name):
 @main.command()
 def list_replication_origins():
     '''Show all replication origins.'''
+    src, _ = _ensure_connected()
     ReplicationOrigins(src).show()
 
 @main.command()
 @click.argument('origin')
-@click.option('--subscription', '-s', help='The name of the logical subscription using this origin.')
-@click.option('--lsn', '-l', help='The WAL offset (LSN) to rewind to. Example: 0/16EDE8A0')
+@click.option('--subscription', '-s', help='The name of the logical subscription using this origin.', required=True)
+@click.option('--lsn', '-l', help='The WAL offset (LSN) to rewind to. Example: 0/16EDE8A0', required=True)
 def rewind_replication_origin(origin, subscription, lsn):
     '''Rewind logical subscription to LSN. Very dangerous.'''
+    src, dest = _ensure_connected()
     origin = ReplicationOrigins(src).get(origin)
     sub = Subscriptions(src, dest).get(subscription)
 
@@ -599,6 +628,14 @@ def rewind_replication_origin(origin, subscription, lsn):
     else:
         origin.rewind(lsn, sub)
 
+
+@main.command()
+@click.option('--source', '-s', help='DSN for the source database, i.e. the primary.', required=True)
+@click.option('--destination', '-s', help='DSN for the destination database, i.e. the replica.', required=True)
+def configure(source, destination):
+    with open('./.env', 'w') as file:
+        file.write(f'SOURCE_DB_DSN={source}\n')
+        file.write(f'DEST_DB_DSN={destination}\n')
 
 if __name__ == '__main__':
     main()
