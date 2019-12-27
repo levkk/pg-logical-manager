@@ -566,6 +566,7 @@ def list_subscriptions():
 @click.option('--copy-data/--no-copy', default=False, help='Copy all existing data from publisher to subscriber. Default is no.')
 def create_subscription(name, enabled, copy_data):
     '''Create a logical replication subscription.'''
+    src, dest = _ensure_connected()
     Subscription.create(src, dest, name, copy_data=copy_data, enabled=enabled)
 
 @main.command()
