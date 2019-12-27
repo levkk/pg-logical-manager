@@ -15,3 +15,12 @@ Basically, make sure this works:
 src = psycopg2.connect('postgres://localhost:5432/src')
 dest = psycopg2.connect('postgres://localhost:5432/dest')
 ```
+
+## Usage
+
+Use the menu:
+
+```bash
+$ pip3 install requirements.txt
+$ python3 manager.py --help
+```
