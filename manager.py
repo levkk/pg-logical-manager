@@ -234,7 +234,7 @@ class Subscription:
             copy_data = str(copy_data).lower()
             query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication.name} WITH (copy_data = {copy_data}, slot_name = {slot.name}, create_slot = false)'
 
-            _debug(dest.cursor().mogrify(query, (src.dsn,)))
+            _debug(dest.cursor().mogrify(query, (src.dsn,)).decode('utf-8'))
 
             dest.cursor().execute(query, (src.dsn,))
             dest.set_session(autocommit=False)
