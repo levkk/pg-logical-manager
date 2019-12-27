@@ -229,7 +229,7 @@ class Subscription:
         subscription = Subscriptions(src, dest).get(name)
 
         if subscription is None:
-            dest.rollback() # Flush all existing trunscations
+            dest.rollback() # Flush all existing transactions
             dest.set_session(autocommit=True)
             copy_data = str(copy_data).lower()
             query = f'CREATE SUBSCRIPTION {name} CONNECTION %s PUBLICATION {publication.name} WITH (copy_data = {copy_data}, slot_name = {slot.name}, create_slot = false)'
