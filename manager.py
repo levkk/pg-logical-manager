@@ -476,14 +476,3 @@ Subscriptions(src, dest).show()
 Publications(src).show()
 ReplicationSlots(src).show()
 ReplicationOrigins(src).show()
-
-# try:
-#     create_logical_repl_slot(cur, 'test_slot')
-#     show_repl_slots(cur, 'test_slot')
-#     show_repl_slots(cur, 'sdfsf')
-# finally:
-#     conn.commit()
-#     drop_replication_slot(cur, 'test_slot')
-# create_subscription(cur, 'postgres://localhost:5432/hypershield_test', 'all_tables')
-
-# show_subscriptions(cur)
