@@ -272,7 +272,7 @@ class Subscription:
 
     @classmethod
     def from_row(cls, src, dest, row):
-        slot = ReplicationSlots(dest).get(row['subslotname'])
+        slot = ReplicationSlots(src).get(row['subslotname'])
 
         if slot is None:
             slot = ReplicationSlot(None)
