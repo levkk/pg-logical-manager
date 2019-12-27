@@ -1,0 +1,76 @@
+(venv) Lev-Laptop:pg-logical-manager levkokotov$ python manager.py 
+
+
+Subscriptions
+
+No subscriptions found.
+
+
+
+Publications
+
+No publications found.
+
+
+
+Replication Slots
+
+No replication slots found.
+
+psql:  SELECT pg_create_logical_replication_slot('test_sub_slot', 'pgoutput') 
+psql:  CREATE PUBLICATION test_sub_publication FOR ALL TABLES 
+psql:  CREATE SUBSCRIPTION test_sub CONNECTION 'postgres://localhost:5432/src' PUBLICATION test_sub_publication WITH (copy_data = false, slot_name = test_sub_slot, create_slot = false) 
+
+
+Subscriptions
+
++-------------------+---------+-------------------------------+---------------+----------------------+
+| Subscription name | Enabled |              DSN              |   Slot Name   |     Publication      |
++-------------------+---------+-------------------------------+---------------+----------------------+
+|      test_sub     |   True  | postgres://localhost:5432/src | test_sub_slot | test_sub_publication |
++-------------------+---------+-------------------------------+---------------+----------------------+
+
+
+
+Publications
+
++----------------------+
+|   Publication name   |
++----------------------+
+| test_sub_publication |
++----------------------+
+
+
+
+Replication Slots
+
++---------------+----------+-----------+-------------+
+|   Slot name   |  Plugin  | Slot Type | Flushed LSN |
++---------------+----------+-----------+-------------+
+| test_sub_slot | pgoutput |  logical  |  0/16E8A2D0 |
++---------------+----------+-----------+-------------+
+
+psql:  ALTER SUBSCRIPTION test_sub DISABLE 
+psql:  ALTER SUBSCRIPTION test_sub SET (slot_name = NONE) 
+psql:  DROP SUBSCRIPTION test_sub 
+psql:  SELECT pg_drop_replication_slot('test_sub_slot') 
+psql:  DROP PUBLICATION test_sub_publication 
+
+
+Subscriptions
+
+No subscriptions found.
+
+
+
+Publications
+
+No publications found.
+
+
+
+Replication Slots
+
+No replication slots found.
+
+(venv) Lev-Laptop:pg-logical-manager levkokotov$ 
