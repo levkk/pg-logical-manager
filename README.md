@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/levkk/pg-logical-manager.svg?branch=master)](https://travis-ci.com/levkk/pg-logical-manager)
+
 # pg-logical-manager
 Manage logical replication for your PostgreSQL cluster. Simply create/drop/enable/disable/list subscriptions.
 
