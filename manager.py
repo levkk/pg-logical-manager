@@ -2,6 +2,7 @@
 
 import psycopg2
 import psycopg2.extras # DictCursor
+import colorama
 from colorama import Fore, Style # Colors in terminal
 from prettytable import PrettyTable # Pretty table output
 from time import sleep
@@ -14,6 +15,9 @@ __version__ = 0.1
 
 # Load environment variables from .env
 load_dotenv()
+
+# Cross-platform colors!
+colorama.init()
 
 def _debug(query):
     print(Fore.BLUE, '\bpsql: ', query, Style.RESET_ALL)
