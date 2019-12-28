@@ -43,6 +43,21 @@ def _unlock(conn):
     _debug(cursor.mogrify(query, (key,)).decode('utf-8'))
     cursor.execute(query, (key,))
 
+def _superuser(conn):
+    '''Check if the connected user is a SUPERUSER, which is required.'''
+    query = 'SELECT usesuper FROM pg_user WHERE usename = CURRENT_USER'
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    cursor.execute(query)
+
+    return cursor.fetchone()['usesuper']
+
+
+class NotSuperUserError(Exception):
+    def __init__(self, dsn):
+        super()
+        self.dsn = dsn
+
 
 class ReplicationSlot:
     @classmethod
@@ -574,8 +589,16 @@ def _ensure_connected():
         src = psycopg2.connect(src_dsn, connect_timeout=5)
         dest = psycopg2.connect(dest_dsn, connect_timeout=5)
         print(Fore.BLUE, '\bConnection established.', Style.RESET_ALL)
-    except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError):
-        print(Fore.RED, '\bCould not connect to source/destination DB. Make sure they are reachable and the DSN is correct.', Style.RESET_ALL)
+
+        if not _superuser(src):
+            raise NotSuperUserError(src.dsn)
+        if not _superuser(dest):
+            raise NotSuperUserError(dest.dsn)
+    except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError) as e:
+        print(Fore.RED, f'\bCould not connect to source/destination DB: {e}', Style.RESET_ALL)
+        exit(1)
+    except NotSuperUserError as e:
+        print(Fore.RED, f'\b{e.dsn} is not a SUPERUSER which is required.', Style.RESET_ALL)
         exit(1)
     finally:
         print(Fore.BLUE, f'\bSource (primary): {src_dsn}', Style.RESET_ALL)
