@@ -5,7 +5,7 @@ Includes other more risky but interesting abilities like:
 1. rewinding subscriptions, i.e. moving back and forth between LSNs,
 2. creating reverse subscriptions, i.e. send data from replica to primary instead; this is useful when the replica is promoted to primary and the primary should be kept up-to-date in case you want to switch them back.
 
-[Pg Logical Manager Demo](https://i.imgur.com/bXpufEm.gif)
+![Pg Logical Manager Demo](https://i.imgur.com/bXpufEm.gif)
 
 ## Setup
 
