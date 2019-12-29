@@ -64,6 +64,13 @@ class NotSuperUserError(Exception):
         self.dsn = dsn
 
 
+class BelowMinimumVersion(Exception):
+    def __init__(self, dsn, server_version):
+        super()
+        self.dsn = dsn
+        self.server_version = server_version
+
+
 class ReplicationSlot:
     @classmethod
     def from_row(cls, conn, row):
@@ -737,6 +744,10 @@ def _ensure_connected():
             raise NotSuperUserError(src.dsn)
         if not _superuser(dest):
             raise NotSuperUserError(dest.dsn)
+        if src.server_version < 100000:
+            raise BelowMinimumVersion(src.dsn, src.server_version)
+        if dest.server_version < 100000:
+            raise BelowMinimumVersion(src.dsn, src.server_version)
     except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError) as e:
         print(
             Fore.RED, f'\bCould not connect to source/destination DB: {e}', Style.RESET_ALL)
@@ -744,6 +755,10 @@ def _ensure_connected():
     except NotSuperUserError as e:
         print(
             Fore.RED, f'\b{e.dsn} is not a SUPERUSER which is required.', Style.RESET_ALL)
+        exit(1)
+    except BelowMinimumVersion as e:
+        print(
+            Fore.RED, f'\b{e.dsn} (version: {e.server_version}): PostgreSQL 10 or higher is required.', Style.RESET_ALL)
         exit(1)
     finally:
         print(Fore.BLUE, f'\bSource (primary): {src_dsn}', Style.RESET_ALL)

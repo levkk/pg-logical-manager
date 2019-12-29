@@ -1,15 +1,14 @@
 language: python
-dist: bionic
+dist: xenial
 python:
   - "3.7"
 install:
   - pip install -r requirements.txt
   - pip install -r requirements-dev.txt
-# before_install:
-  # - sudo service postgresql start
-  # - sudo su postgres -c $'psql -c "ALTER SYSTEM SET wal_level = \'logical\'"'
-  # - sudo service postgresql stop
-  # - sudo service postgresql start
+before_install:
+  - sudo su postgres -c $'psql -c "ALTER SYSTEM SET wal_level = \'logical\'"'
+  - sudo su postgres -c $'psql -c "ALTER SYSTEM SET max_replication_slots = 10;"'
+  - sudo /etc/init.d/postgresql restart 10
 script:
   - sudo su postgres -c "psql -c 'CREATE DATABASE src;'"
   - sudo su postgres -c "psql -c 'CREATE DATABASE dest;'"
@@ -21,12 +20,16 @@ script:
   - python -m pglogicalmanager list-tables --destination
   - python -m pglogicalmanager list-columns test --source
   - python -m pglogicalmanager list-columns test --destination
+  - python -m pglogicalmanager create-subscription test_sub
+  - python -m pglogicalmanager list-subscriptions
+  - python -m pglogicalmanager disable-subscription test_sub
+  - python -m pglogicalmanager enable-subscription test_sub
+  - python -m pglogicalmanager drop-subscription test_sub
   - pytest
-  # - python manager.py create-subscription test_sub
-  # - python manager.py list-subscriptions
-  # - python manager.py disable-subscription test_sub
-  # - python manager.py enable-subscription test_sub
-  # - python manager.py drop-subscription test_sub
-  # TODO: Figure out why Travis container stalls on restarts when wal_level is changed to logical.
-services:
-  - postgresql
+
+addons:
+  postgresql: "10"
+  apt:
+    packages:
+    - postgresql-10
+    - postgresql-client-10
