@@ -216,6 +216,7 @@ class Publication:
         self.conn = conn
         self.name = None
         self.exists = False
+        self.all_tables = False
 
     @classmethod
     def create(cls, conn, name):
@@ -232,6 +233,7 @@ class Publication:
             obj = cls(conn)
             obj.name = name
             obj.exists = True
+            obj.all_tables = True
 
             conn.commit()
 
@@ -245,6 +247,7 @@ class Publication:
         obj = cls(conn)
         obj.name = row['pubname']
         obj.exists = True
+        obj.all_tables = row['puballtables']
 
         return obj
 
@@ -262,7 +265,6 @@ class Publication:
             self.conn.commit()
 
         self.exists = False
-
 
 
 class Subscription:
@@ -440,7 +442,6 @@ class Subscription:
     def to_list(self):
         return [self.name, self.enabed, self.dsn, self.slot.name, self.publication.name, self.replication_lag(), self.slot.confirmed_flush_lsn]
 
-
 class Subscriptions:
     def __init__(self, src, dest):
         self.src = src
@@ -477,7 +478,6 @@ class Subscriptions:
             if subscription.name == name:
                 return subscription
         return None
-
 
 class ReplicationOrigin:
     def __init__(self, conn):
@@ -535,7 +535,6 @@ class ReplicationOrigin:
     def to_list(self):
         return [self.name]
 
-
 class ReplicationOrigins:
     def __init__(self, conn):
         self.conn = conn
@@ -579,6 +578,124 @@ class ReplicationOrigins:
             print(Fore.GREEN, '\bNo replication origins available.', Style.RESET_ALL)
         else:
             return self.origins[-1]
+
+class Table:
+    def __init__(self, conn):
+        self.conn = conn
+        self.name = None
+        self.owner = None
+
+    @classmethod
+    def from_row(cls, conn, row):
+        obj = cls(conn)
+        obj.name = row['tablename']
+        obj.owner = row['tableowner']
+
+        return obj
+
+    def to_list(self):
+        return [self.name, self.owner]
+
+
+class Tables:
+    def __init__(self, conn):
+        self.conn = conn
+        self.cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        self.tables = []
+
+    def refresh(self):
+        query = "SELECT * FROM pg_tables WHERE schemaname ='public';"
+
+        self.cursor.execute(query)
+
+        self.tables = [Table.from_row(self.conn, row) for row in self.cursor.fetchall()]
+
+    def show(self):
+        self.refresh()
+
+        print(Fore.GREEN)
+        print('\nTables\n')
+
+        if len(self.tables) == 0:
+            print('\bNo tables found.', Style.RESET_ALL)
+        else:
+            print_table = PrettyTable(['Table name', 'Owner'])
+
+            for table in self.tables:
+                print_table.add_row(table.to_list())
+
+            print(print_table)
+
+        print(Style.RESET_ALL)
+
+    def get(self, name):
+        self.refresh()
+
+        for table in self.tables:
+            if table.name == name:
+                return table
+        return None
+
+
+class Column:
+    def __init__(self, conn, table):
+        self.conn = conn
+        self.table = table
+        self.name = None
+        self.type = None
+
+    @classmethod
+    def from_row(cls, conn, table, row):
+        obj = cls(conn, table)
+        obj.name = row['column_name']
+        obj.type = row['data_type']
+
+        return obj
+
+    def to_list(self):
+        return [self.name, self.type]
+
+
+class Columns:
+    def __init__(self, conn, table):
+        self.conn = conn
+        self.cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        self.table = table
+        self.columns = []
+
+    def refresh(self):
+        query = "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s ORDER BY column_name"
+
+        self.cursor.execute(query, (self.table.name,))
+
+        self.columns = [Column.from_row(self.conn, self.table, row) for row in self.cursor.fetchall()]
+
+    def show(self):
+        self.refresh()
+
+        print(Fore.GREEN)
+        print(f'\nColumns in "{self.table.name}"\n')
+
+        if len(self.columns) == 0:
+            print('No tables found.')
+        else:
+            table = PrettyTable(['Column name', 'Data type'])
+
+            for column in self.columns:
+                table.add_row(column.to_list())
+
+            print(table)
+
+        print(Style.RESET_ALL)
+
+    def get(self, name):
+        self.refresh()
+
+        for column in self.columns:
+            if column.name == name:
+                return column
+        return None
+
 
 def _ensure_connected():
     src_dsn = os.getenv('SOURCE_DB_DSN')
@@ -709,6 +826,7 @@ def _write_config(source, destination):
 @click.option('--source', '-s', help='DSN for the source database, i.e. the primary.', required=True)
 @click.option('--destination', '-s', help='DSN for the destination database, i.e. the replica.', required=True)
 def configure(source, destination):
+    '''Write source and destination configuration. Saves it to .env file.'''
     _write_config(source, destination)
 
 
@@ -719,6 +837,33 @@ def reverse_configuration():
     _write_config(dest.dsn, src.dsn)
     load_dotenv(override=True)
     src, dest = _ensure_connected()
+
+@main.command()
+@click.option('--source/--destination', help='List tables on the source or destination.', required=True)
+def list_tables(source):
+    '''List the tables on the source/destination.'''
+    src, dest = _ensure_connected()
+
+    if source:
+        Tables(src).show()
+    else:
+        Tables(dest).show()
+
+@main.command()
+@click.argument('table_name')
+@click.option('--source/--destination', help='List the columns on the source or destination table.', required=True)
+def list_columns(table_name, source):
+    '''List columns in a table. Specify source or destination if they are not in sync.'''
+    src, dest = _ensure_connected()
+
+    conn = src if source else dest
+    conn_name = 'source' if source else 'destination'
+    table = Tables(conn).get(table_name)
+
+    if table is None:
+        print(Fore.GREEN, f'\bNo table {table_name} exists on {conn_name}.', Style.RESET_ALL)
+    else:
+        Columns(conn, table).show()
 
 if __name__ == '__main__':
     main()
