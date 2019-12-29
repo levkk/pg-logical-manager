@@ -44,7 +44,7 @@ $ python manager.py --help
 
 ### Basic features
 
-You can easily list, create, drop, disable, and enable subscriptions. These sit directly on top of Postgres primitives (i.e. `CREATE SUBSCRIPTION`, `DROP SUBSCRIPTION`, etc.) and are fairly well-known.
+You can easily list, create, drop, disable, and enable subscriptions. These sit directly on top of Postgres primitives (i.e. `CREATE SUBSCRIPTION`, `DROP SUBSCRIPTION`, etc.) and are fairly well-known. You can also list tables in source/destination and list columns in those tables. 
 
 ### Advanced (read risky) features
 
