@@ -4,6 +4,7 @@ python:
   - "3.7"
 install:
   - pip install -r requirements.txt
+  - pip install -r requirements-dev.txt
 # before_install:
   # - sudo service postgresql start
   # - sudo su postgres -c $'psql -c "ALTER SYSTEM SET wal_level = \'logical\'"'
@@ -20,6 +21,7 @@ script:
   - python manager.py list-tables --destination
   - python manager.py list-columns test --source
   - python manager.py list-columns test --destination
+  - pytest
   # - python manager.py create-subscription test_sub
   # - python manager.py list-subscriptions
   # - python manager.py disable-subscription test_sub
