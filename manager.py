@@ -1,10 +1,10 @@
 '''PostgreSQL logical replication manager'''
 
 import psycopg2
-import psycopg2.extras # DictCursor
+import psycopg2.extras  # DictCursor
 import colorama
-from colorama import Fore, Style # Colors in terminal
-from prettytable import PrettyTable # Pretty table output
+from colorama import Fore, Style  # Colors in terminal
+from prettytable import PrettyTable  # Pretty table output
 from time import sleep
 import click
 from dotenv import load_dotenv
@@ -19,11 +19,14 @@ load_dotenv()
 # Cross-platform colors!
 colorama.init()
 
+
 def _debug(query):
     print(Fore.BLUE, '\bpsql: ', query, Style.RESET_ALL)
 
+
 def _lock_key():
     return int(''.join(map(lambda x: str(ord(x) % 7), list('pg-logical-manager'))))
+
 
 def _lock(conn):
     key = _lock_key()
@@ -35,6 +38,7 @@ def _lock(conn):
 
     return cursor.fetchone()['pg_try_advisory_lock']
 
+
 def _unlock(conn):
     key = _lock_key()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -42,6 +46,7 @@ def _unlock(conn):
 
     _debug(cursor.mogrify(query, (key,)).decode('utf-8'))
     cursor.execute(query, (key,))
+
 
 def _superuser(conn):
     '''Check if the connected user is a SUPERUSER, which is required.'''
@@ -136,6 +141,7 @@ class ReplicationSlot:
     def __str__(self):
         return 'Replication slot: ' + '::'.join(repr(self))
 
+
 class ReplicationSlots:
     def __init__(self, conn):
         self.conn = conn
@@ -144,7 +150,8 @@ class ReplicationSlots:
 
     def refresh(self):
         self.cursor.execute('SELECT * FROM pg_replication_slots')
-        self.slots = [ReplicationSlot.from_row(self.conn, slot) for slot in self.cursor.fetchall()]
+        self.slots = [ReplicationSlot.from_row(
+            self.conn, slot) for slot in self.cursor.fetchall()]
 
     def show(self):
         self.refresh()
@@ -155,8 +162,9 @@ class ReplicationSlots:
         if len(self.slots) == 0:
             print('No replication slots found.')
         else:
-            table = PrettyTable(['Slot name', 'Plugin', 'Slot Type', 'Flushed LSN'])
-            
+            table = PrettyTable(
+                ['Slot name', 'Plugin', 'Slot Type', 'Flushed LSN'])
+
             for slot in self.slots:
                 table.add_row(slot.to_list())
 
@@ -181,7 +189,8 @@ class Publications:
 
     def refresh(self):
         self.cursor.execute('SELECT * FROM pg_publication')
-        self.publications = [Publication.from_row(self.conn, row) for row in self.cursor.fetchall()]
+        self.publications = [Publication.from_row(
+            self.conn, row) for row in self.cursor.fetchall()]
 
     def get(self, name):
         self.refresh()
@@ -202,13 +211,13 @@ class Publications:
             print('No publications found.')
         else:
             table = PrettyTable(['Publication name'])
-            
+
             for publication in self.publications:
                 table.add_row(publication.to_list())
 
             print(table)
 
-        print(Style.RESET_ALL) 
+        print(Style.RESET_ALL)
 
 
 class Publication:
@@ -259,7 +268,7 @@ class Publication:
 
         if publication is not None:
             query = f'DROP PUBLICATION {self.name}'
-            
+
             _debug(query)
             self.conn.cursor().execute(query)
             self.conn.commit()
@@ -288,7 +297,7 @@ class Subscription:
         subscription = Subscriptions(src, dest).get(name)
 
         if subscription is None:
-            dest.rollback() # Flush all existing transactions
+            dest.rollback()  # Flush all existing transactions
             dest.set_session(autocommit=True)
             copy_data = str(copy_data).lower()
             enabled = str(enabled).lower()
@@ -352,7 +361,7 @@ class Subscription:
             self.dest.commit()
 
     def lock(self):
-       return _lock(self.src) and _lock(self.dest)
+        return _lock(self.src) and _lock(self.dest)
 
     def unlock(self):
         _unlock(self.src)
@@ -381,7 +390,8 @@ class Subscription:
 
     def reverse(self):
         '''Publisher becomes subscriber, subscriber become publisher.'''
-        sure = input(Fore.RED + '\bThis is irreversible. Are you sure? [Y/n]: ' + Style.RESET_ALL)
+        sure = input(
+            Fore.RED + '\bThis is irreversible. Are you sure? [Y/n]: ' + Style.RESET_ALL)
 
         if sure != 'Y':
             print(Fore.RED, '\bAborting. Come back when you\'re sure.')
@@ -390,7 +400,8 @@ class Subscription:
         replication_lag = self.replication_lag()
 
         if replication_lag != 0:
-            proceed = input(Fore.RED + f'\bReplication lag is {replication_lag}, are you sure you want to proceed? [Y/n]: ' + Style.RESET_ALL)
+            proceed = input(
+                Fore.RED + f'\bReplication lag is {replication_lag}, are you sure you want to proceed? [Y/n]: ' + Style.RESET_ALL)
 
             if proceed != 'Y':
                 print(Fore.RED, '\bAborting. Good call.', Style.RESET_ALL)
@@ -402,7 +413,8 @@ class Subscription:
         src = self.src
 
         # Note that src is now dest, and dest is now src.
-        subscription = Subscription.create(dest, src, f'{self.name}_reversed', copy_data=False, enabled=True)
+        subscription = Subscription.create(
+            dest, src, f'{self.name}_reversed', copy_data=False, enabled=True)
 
         self.slot = subscription.slot
         self.publication = subscription.publication
@@ -442,6 +454,7 @@ class Subscription:
     def to_list(self):
         return [self.name, self.enabed, self.dsn, self.slot.name, self.publication.name, self.replication_lag(), self.slot.confirmed_flush_lsn]
 
+
 class Subscriptions:
     def __init__(self, src, dest):
         self.src = src
@@ -450,8 +463,9 @@ class Subscriptions:
 
     def refresh(self):
         self.cursor.execute('SELECT * FROM pg_subscription')
-        self.subscriptions = [Subscription.from_row(self.src, self.dest, row) for row in self.cursor.fetchall()]
-        
+        self.subscriptions = [Subscription.from_row(
+            self.src, self.dest, row) for row in self.cursor.fetchall()]
+
     def show(self):
         self.refresh()
 
@@ -460,7 +474,8 @@ class Subscriptions:
             print('\nSubscriptions\n')
             print('No subscriptions found.')
         else:
-            table = PrettyTable(['Subscription name', 'Enabled', 'DSN', 'Slot Name', 'Publication', 'Replication Lag', 'Flushed LSN'])
+            table = PrettyTable(['Subscription name', 'Enabled', 'DSN',
+                                 'Slot Name', 'Publication', 'Replication Lag', 'Flushed LSN'])
 
             for subscription in self.subscriptions:
                 table.add_row(subscription.to_list())
@@ -478,6 +493,7 @@ class Subscriptions:
             if subscription.name == name:
                 return subscription
         return None
+
 
 class ReplicationOrigin:
     def __init__(self, conn):
@@ -497,15 +513,19 @@ class ReplicationOrigin:
             raise Exception('Cannot rewind replication origin to a NULL LSN.')
 
         # Are you sure?
-        sure = input(Fore.RED + '\bThis is a very dangerous operation. Are you sure? [Y/n]: ' + Style.RESET_ALL)
+        sure = input(
+            Fore.RED + '\bThis is a very dangerous operation. Are you sure? [Y/n]: ' + Style.RESET_ALL)
         if sure.strip() != 'Y':
-            print(Fore.RED, '\bAborting. Come back when you\'re sure.\n', Style.RESET_ALL)
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.\n',
+                  Style.RESET_ALL)
             return
 
         # Check LSN with user
-        lsn_correct = input(Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
+        lsn_correct = input(
+            Fore.GREEN + f'\bPlease confirm you want this LSN {lsn}. [Y/n]: ' + Style.RESET_ALL)
         if lsn_correct.strip() != 'Y':
-            print(Fore.RED, '\bAborting. Come back when you\'re sure.', Style.RESET_ALL)
+            print(Fore.RED, '\bAborting. Come back when you\'re sure.',
+                  Style.RESET_ALL)
             return
 
         # Make sure no one else is doing this
@@ -523,9 +543,10 @@ class ReplicationOrigin:
         print(Fore.GREEN, '\bGiving the replication worker 5 seconds to shut down...')
         sleep(5.0)
 
-        self.conn.rollback() # Flush all transactions
+        self.conn.rollback()  # Flush all transactions
         self.conn.set_session(autocommit=True)
-        _debug(self.conn.cursor().mogrify(query, (self.name, lsn)).decode('utf-8'))
+        _debug(self.conn.cursor().mogrify(
+            query, (self.name, lsn)).decode('utf-8'))
         self.conn.cursor().execute(query, (self.name, lsn))
         self.conn.set_session(autocommit=False)
         subscription.enable()
@@ -535,6 +556,7 @@ class ReplicationOrigin:
     def to_list(self):
         return [self.name]
 
+
 class ReplicationOrigins:
     def __init__(self, conn):
         self.conn = conn
@@ -543,7 +565,8 @@ class ReplicationOrigins:
 
     def refresh(self):
         self.cursor.execute('SELECT * FROM pg_replication_origin')
-        self.origins = [ReplicationOrigin.from_row(self.conn, row) for row in self.cursor.fetchall()]
+        self.origins = [ReplicationOrigin.from_row(
+            self.conn, row) for row in self.cursor.fetchall()]
 
     def show(self):
         self.refresh()
@@ -579,6 +602,7 @@ class ReplicationOrigins:
         else:
             return self.origins[-1]
 
+
 class Table:
     def __init__(self, conn):
         self.conn = conn
@@ -608,7 +632,8 @@ class Tables:
 
         self.cursor.execute(query)
 
-        self.tables = [Table.from_row(self.conn, row) for row in self.cursor.fetchall()]
+        self.tables = [Table.from_row(self.conn, row)
+                       for row in self.cursor.fetchall()]
 
     def show(self):
         self.refresh()
@@ -668,7 +693,8 @@ class Columns:
 
         self.cursor.execute(query, (self.table.name,))
 
-        self.columns = [Column.from_row(self.conn, self.table, row) for row in self.cursor.fetchall()]
+        self.columns = [Column.from_row(
+            self.conn, self.table, row) for row in self.cursor.fetchall()]
 
     def show(self):
         self.refresh()
@@ -712,22 +738,27 @@ def _ensure_connected():
         if not _superuser(dest):
             raise NotSuperUserError(dest.dsn)
     except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError) as e:
-        print(Fore.RED, f'\bCould not connect to source/destination DB: {e}', Style.RESET_ALL)
+        print(
+            Fore.RED, f'\bCould not connect to source/destination DB: {e}', Style.RESET_ALL)
         exit(1)
     except NotSuperUserError as e:
-        print(Fore.RED, f'\b{e.dsn} is not a SUPERUSER which is required.', Style.RESET_ALL)
+        print(
+            Fore.RED, f'\b{e.dsn} is not a SUPERUSER which is required.', Style.RESET_ALL)
         exit(1)
     finally:
         print(Fore.BLUE, f'\bSource (primary): {src_dsn}', Style.RESET_ALL)
-        print(Fore.BLUE, f'\bDestination (replica): {dest_dsn}', Style.RESET_ALL)
+        print(
+            Fore.BLUE, f'\bDestination (replica): {dest_dsn}', Style.RESET_ALL)
 
     # Never mix them up, heh.
     return src, dest
+
 
 @click.group()
 def main():
     '''PostgreSQL logical replication manager'''
     pass
+
 
 @main.command()
 @click.argument('name', required=True)
@@ -738,9 +769,11 @@ def create_replication_slot(name):
     slot = ReplicationSlots(src).get(name)
 
     if slot is not None:
-        print(Fore.GREEN, f'\bReplication slot {name} already exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bReplication slot {name} already exists.', Style.RESET_ALL)
     else:
         ReplicationSlot.create(src, name)
+
 
 @main.command()
 @click.argument('name', required=True)
@@ -751,15 +784,18 @@ def drop_replication_slot(name):
     slot = ReplicationSlots(src).get(name)
 
     if slot is None:
-        print(Fore.GREEN, f'\bReplication slot {name} does not exist.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bReplication slot {name} does not exist.', Style.RESET_ALL)
     else:
         slot.drop()
+
 
 @main.command()
 def list_subscriptions():
     '''List all current subscriptions.'''
     src, dest = _ensure_connected()
     Subscriptions(src, dest).show()
+
 
 @main.command()
 @click.argument('name')
@@ -770,6 +806,7 @@ def create_subscription(name, enabled, copy_data):
     src, dest = _ensure_connected()
     Subscription.create(src, dest, name, copy_data=copy_data, enabled=enabled)
 
+
 @main.command()
 @click.argument('name')
 def drop_subscription(name):
@@ -778,9 +815,11 @@ def drop_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.drop()
+
 
 @main.command()
 @click.argument('name')
@@ -790,9 +829,11 @@ def enable_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.enable()
+
 
 @main.command()
 @click.argument('name')
@@ -802,15 +843,18 @@ def disable_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.disable()
+
 
 @main.command()
 def list_replication_origins():
     '''Show all replication origins.'''
     src, _ = _ensure_connected()
     ReplicationOrigins(src).show()
+
 
 @main.command()
 @click.argument('origin')
@@ -823,11 +867,14 @@ def rewind_replication_origin(origin, subscription, lsn):
     sub = Subscriptions(src, dest).get(subscription)
 
     if origin is None:
-        print(Fore.GREEN, f'\bNo origin with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo origin with name {name} exists.', Style.RESET_ALL)
     elif subscription is None:
-        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         origin.rewind(lsn, sub)
+
 
 @main.command()
 @click.argument('name')
@@ -838,9 +885,11 @@ def reverse_subscription(name):
     sub = Subscriptions(src, dest).get(name)
 
     if sub is None:
-        print(Fore.GREEN, f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
+        print(Fore.GREEN,
+              f'\bNo subscription with name {name} exists.', Style.RESET_ALL)
     else:
         sub.reverse()
+
 
 def _write_config(source, destination):
     with open('./.env', 'w') as file:
@@ -864,6 +913,7 @@ def reverse_configuration():
     load_dotenv(override=True)
     src, dest = _ensure_connected()
 
+
 @main.command()
 @click.option('--source/--destination', help='List tables on the source or destination.', required=True)
 def list_tables(source):
@@ -874,6 +924,7 @@ def list_tables(source):
         Tables(src).show()
     else:
         Tables(dest).show()
+
 
 @main.command()
 @click.argument('table_name')
@@ -887,10 +938,11 @@ def list_columns(table_name, source):
     table = Tables(conn).get(table_name)
 
     if table is None:
-        print(Fore.GREEN, f'\bNo table {table_name} exists on {conn_name}.', Style.RESET_ALL)
+        print(
+            Fore.GREEN, f'\bNo table {table_name} exists on {conn_name}.', Style.RESET_ALL)
     else:
         Columns(conn, table).show()
 
+
 if __name__ == '__main__':
     main()
-
