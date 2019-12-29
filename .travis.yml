@@ -15,12 +15,12 @@ script:
   - sudo su postgres -c "psql -c 'CREATE DATABASE dest;'"
   - sudo su postgres -c "psql src -c 'CREATE TABLE test (id serial);'"
   - sudo su postgres -c "psql dest -c 'CREATE TABLE test (id bigserial);'"
-  - python manager.py configure --source=postgres://localhost:5432/src --destination=postgres://localhost:5432/dest
-  - python manager.py list-subscriptions
-  - python manager.py list-tables --source
-  - python manager.py list-tables --destination
-  - python manager.py list-columns test --source
-  - python manager.py list-columns test --destination
+  - python -m pglogicalmanager configure --source=postgres://localhost:5432/src --destination=postgres://localhost:5432/dest
+  - python -m pglogicalmanager list-subscriptions
+  - python -m pglogicalmanager list-tables --source
+  - python -m pglogicalmanager list-tables --destination
+  - python -m pglogicalmanager list-columns test --source
+  - python -m pglogicalmanager list-columns test --destination
   - pytest
   # - python manager.py create-subscription test_sub
   # - python manager.py list-subscriptions
