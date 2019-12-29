@@ -20,8 +20,19 @@ def slot_check(name, exists):
     src.close()
     dest.close()
 
+def wal_level():
+    src, dest = _ensure_connected()
+    cursor = src.cursor()
+
+    cursor.execute('SHOW wal_level')
+
+    return cursor.fetchone()[0]
+
 
 def test_replication_slot():
+    if wal_level() != 'logical':
+        pytest.skip('Unsupported configuration. wal_level must be logical.')
+
     runner = CliRunner()
 
     result = runner.invoke(create_replication_slot, ['test_slot'])
