@@ -4,7 +4,7 @@ import click
 from click.testing import CliRunner
 
 # Target
-from manager import list_subscriptions, _ensure_connected
+from pglogicalmanager import list_subscriptions, _ensure_connected
 
 def test_list_subscriptions():
     runner = CliRunner()

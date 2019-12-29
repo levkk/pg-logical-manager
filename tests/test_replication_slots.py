@@ -4,7 +4,7 @@ import click
 from click.testing import CliRunner
 
 # Target
-from manager import create_replication_slot, drop_replication_slot, _ensure_connected
+from pglogicalmanager import create_replication_slot, drop_replication_slot, _ensure_connected
 
 def slot_check(name, exists):
     src, dest = _ensure_connected()
