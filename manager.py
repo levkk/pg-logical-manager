@@ -730,6 +730,32 @@ def main():
     pass
 
 @main.command()
+@click.argument('name', required=True)
+def create_replication_slot(name):
+    '''Manually create a replication slot. Will be created on the source database.'''
+    src, _ = _ensure_connected()
+
+    slot = ReplicationSlots(src).get(name)
+
+    if slot is not None:
+        print(Fore.GREEN, f'\bReplication slot {name} already exists.', Style.RESET_ALL)
+    else:
+        ReplicationSlot.create(src, name)
+
+@main.command()
+@click.argument('name', required=True)
+def drop_replication_slot(name):
+    '''Manually drop a replication slot.'''
+    src, _ = _ensure_connected()
+
+    slot = ReplicationSlots(src).get(name)
+
+    if slot is None:
+        print(Fore.GREEN, f'\bReplication slot {name} does not exist.', Style.RESET_ALL)
+    else:
+        slot.drop()
+
+@main.command()
 def list_subscriptions():
     '''List all current subscriptions.'''
     src, dest = _ensure_connected()
