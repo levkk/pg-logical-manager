@@ -13,7 +13,7 @@ Includes other more risky but interesting abilities like:
 
 ## Pypi (production)
 
-Simply 	`pip install pglogicalmanager`.
+Simply `pip install pglogicalmanager`.
 
 ### Virtual environment (development)
 
