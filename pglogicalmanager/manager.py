@@ -58,6 +58,28 @@ def _superuser(conn):
     return cursor.fetchone()['usesuper']
 
 
+def _memberof(conn, role='rds_superuser'):
+    '''Check if CURRENT_USER is member of role. Useful for checking if user is RDS Superuser.'''
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    cursor.execute('SELECT "oid" FROM pg_roles WHERE rolname = %s', (role,))
+    row = cursor.fetchone()
+
+    # Role doesn't exist.
+    if row is None:
+        return False
+
+    superuser_role_id = row['oid']
+
+    cursor.execute('SELECT "oid" FROM pg_roles WHERE rolname = CURRENT_USER')
+
+    my_id = cursor.fetchone()['oid']
+
+    cursor.execute("SELECT (COUNT(*) <> 0) AS superuser FROM pg_auth_members WHERE roleid = %s AND member = %s", (superuser_role_id, my_id))
+
+    return cursor.fetchone()['superuser']
+
+
 class NotSuperUserError(Exception):
     def __init__(self, dsn):
         super()
@@ -740,9 +762,9 @@ def _ensure_connected():
         dest = psycopg2.connect(dest_dsn, connect_timeout=5)
         print(Fore.BLUE, '\bConnection established.', Style.RESET_ALL)
 
-        if not _superuser(src):
+        if not _superuser(src) and not _memberof(src, role='rds_superuser'):
             raise NotSuperUserError(src.dsn)
-        if not _superuser(dest):
+        if not _superuser(dest) and not _memberof(src, role='rds_superuser'):
             raise NotSuperUserError(dest.dsn)
         if src.server_version < 100000:
             raise BelowMinimumVersion(src.dsn, src.server_version)
