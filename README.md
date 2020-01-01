@@ -5,7 +5,7 @@ Manage logical replication for your PostgreSQL cluster. Simply create/drop/enabl
 
 Includes other more risky but interesting abilities like:
 1. rewinding subscriptions, i.e. moving back and forth between LSNs,
-2. creating reverse subscriptions, i.e. send data from replica to primary instead; this is useful when the replica is promoted to primary and the primary should be kept up-to-date in case you want to switch them back.
+2. creating reverse subscriptions, i.e. send data from replica to primary instead after replica promotion.
 
 [Pg Logical Manager Demo](https://i.imgur.com/bXpufEm.gif)
 
@@ -54,7 +54,7 @@ You can easily list, create, drop, disable, and enable subscriptions. These sit 
 
 ### Advanced (read risky) features
 
-Logical replication is powerful and flexible, and it allows you to do things binary replication can't do. Two features we found useful and which are implemented here are:
+Logical replication is powerful and flexible, and it allows you to do things binary replication can't do. Features we found useful and which are implemented here are:
 
 1. rewind subscription to specific LSN,
 2. reverse subscriptions,
