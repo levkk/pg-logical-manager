@@ -20,9 +20,7 @@ Simply `pip install pglogicalmanager`.
 1. `pip install virtualenv`
 2. `virtualenv venv --python=python3`
 3. `source .venv/bin/activate`
-4. `pip install -r requirements.txt`
-5. `pip install -r requirements-dev.txt`
-
+4. `pip install -e ".[dev]"`
 
 ### Configuration
 
