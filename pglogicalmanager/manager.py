@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
-__version__ = 0.4
+__version__ = '0.4.1'
 
 # Load environment variables from .env
 load_dotenv()
@@ -992,6 +992,10 @@ def list_columns(table_name, source):
             Fore.GREEN, f'\bNo table {table_name} exists on {conn_name}.', Style.RESET_ALL)
     else:
         Columns(conn, table).show()
+
+@main.command()
+def version():
+    print(__version__)
 
 
 if __name__ == '__main__':

@@ -8,11 +8,13 @@ before_install:
   - sudo su postgres -c $'psql -c "ALTER SYSTEM SET wal_level = \'logical\'"'
   - sudo su postgres -c $'psql -c "ALTER SYSTEM SET max_replication_slots = 10;"'
   - sudo /etc/init.d/postgresql restart 10
+  - pip install twine
 script:
   - sudo su postgres -c "psql -c 'CREATE DATABASE src;'"
   - sudo su postgres -c "psql -c 'CREATE DATABASE dest;'"
   - sudo su postgres -c "psql src -c 'CREATE TABLE test (id serial);'"
   - sudo su postgres -c "psql dest -c 'CREATE TABLE test (id bigserial);'"
+  - python -m pglogicalmanager version
   - python -m pglogicalmanager configure --source=postgres://localhost:5432/src --destination=postgres://localhost:5432/dest
   - python -m pglogicalmanager list-subscriptions
   - python -m pglogicalmanager list-tables --source
@@ -31,6 +33,8 @@ script:
   - python -m pglogicalmanager list-subscriptions
   - python -m pglogicalmanager drop-subscription test_sub
   - pytest
+  - python setup.py sdist bdist_wheel
+  - twine check dist/*
 
 addons:
   postgresql: "10"
