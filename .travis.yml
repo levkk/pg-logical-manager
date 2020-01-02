@@ -9,6 +9,11 @@ before_install:
   - sudo su postgres -c $'psql -c "ALTER SYSTEM SET wal_level = \'logical\'"'
   - sudo su postgres -c $'psql -c "ALTER SYSTEM SET max_replication_slots = 10;"'
   - sudo /etc/init.d/postgresql restart 10
+
+  # Start second instance of Postgres
+  - sudo mkdir /var/lib/postgresql2 && sudo chown postgres:postgres /var/lib/postgresql2
+  - sudo su postgres -c 'initdb -D /var/lib/postgresql2'
+  - sudo su postgres -c 'pg_ctl -D /var/lib/postgresql2 -o "-p 5433" -l /var/log/postgresql2.log'
 script:
   - sudo su postgres -c "psql -c 'CREATE DATABASE src;'"
   - sudo su postgres -c "psql -c 'CREATE DATABASE dest;'"
@@ -25,6 +30,8 @@ script:
   - python -m pglogicalmanager disable-subscription test_sub
   - python -m pglogicalmanager enable-subscription test_sub
   - python -m pglogicalmanager drop-subscription test_sub
+  - python -m pglogicalmanager create-replication-slot test_slot
+  - python -m pglogicalmanager drop-replication-slot test_slot
   - pytest
 
 addons:
