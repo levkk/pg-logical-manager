@@ -31,4 +31,9 @@ setuptools.setup(
         'Operating System :: OS Independent', # Colorama!
     ],
     python_requires='>=3.6', # f strings
+    entry_points={
+        'console_scripts': [
+            'pglogicalmanager = pglogicalmanager:main',
+        ]
+    },
 )

@@ -25,7 +25,7 @@ Simply `pip install pglogicalmanager`.
 ### Configuration
 
 ```bash
-$ python -m pglogicalmanager --source=postgres://user:password@primary-db:5432/database --destination=postgres://user:password@replica-db:5432/database
+$ pglogicalmanager --source=postgres://user:password@primary-db:5432/database --destination=postgres://user:password@replica-db:5432/database
 ```
 
 This will write a `.env` file in the same current folder. It will contain the DSNs above.
@@ -33,7 +33,7 @@ This will write a `.env` file in the same current folder. It will contain the DS
 ### Make sure it works
 
 ```bash
-$ python -m pglogicalmanager list-subscriptions
+$ pglogicalmanager list-subscriptions
 ```
 
 ## Usage
@@ -41,7 +41,7 @@ $ python -m pglogicalmanager list-subscriptions
 Check out the help menu:
 
 ```bash
-$ python -m pglogicalmanager --help
+$ pglogicalmanager --help
 ```
 
 ## Features
@@ -63,8 +63,8 @@ Logical replication is powerful and flexible, and it allows you to do things bin
 Rewinding a subscription makes it replicate from a paritcular point-in-time. This works like `pg_rewind` except on a live cluster and without changing the WAL timeline. Note: _this is pretty dangerous_. If you rewind it to a wrong spot, you could create conflicts (unique contraint violations, for example) and the replication can break.
 
 ```bash
-$ python -m pglogicalmanager list-replication-origins
-$ python -m pglogicalmanager rewind-replication-origin --help
+$ pglogicalmanager list-replication-origins
+$ pglogicalmanager rewind-replication-origin --help
 ```
 
 TODO: Document use cases.
@@ -75,7 +75,7 @@ Reversing a subscription is switching roles between the primary and the replica:
 
 
 ```bash
-$ python -m pglogicalmanager reverse-subscription --help
+$ pglogicalmanager reverse-subscription --help
 ```
 
 This will also overwrite your `.env` configuration and change the source DSN to the destination DSN and vice versa.
