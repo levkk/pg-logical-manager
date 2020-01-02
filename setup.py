@@ -19,6 +19,9 @@ setuptools.setup(
         'psycopg2>=2.8.4',
         'python-dotenv>=0.10.3',
     ],
+    extras_require={
+        'dev': 'pytest'
+    },
     packages=setuptools.find_packages(exclude=('tests',)),
     classifiers=[
         'Programming Language :: Python :: 3.6',
