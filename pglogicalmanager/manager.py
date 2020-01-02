@@ -752,23 +752,28 @@ class Columns:
         return None
 
 
-def _ensure_connected():
+def _ensure_connected(source_only=False):
     src_dsn = os.getenv('SOURCE_DB_DSN')
     dest_dsn = os.getenv('DEST_DB_DSN')
 
     try:
         print(Fore.BLUE, '\bConnecting to source and destination databases...', Style.RESET_ALL)
         src = psycopg2.connect(src_dsn, connect_timeout=5)
-        dest = psycopg2.connect(dest_dsn, connect_timeout=5)
+
+        if not source_only:
+            dest = psycopg2.connect(dest_dsn, connect_timeout=5)
+        else:
+            dest = None
+
         print(Fore.BLUE, '\bConnection established.', Style.RESET_ALL)
 
         if not _superuser(src) and not _memberof(src, role='rds_superuser'):
             raise NotSuperUserError(src.dsn)
-        if not _superuser(dest) and not _memberof(src, role='rds_superuser'):
+        if dest is not None and not _superuser(dest) and not _memberof(src, role='rds_superuser'):
             raise NotSuperUserError(dest.dsn)
         if src.server_version < 100000:
             raise BelowMinimumVersion(src.dsn, src.server_version)
-        if dest.server_version < 100000:
+        if dest is not None and dest.server_version < 100000:
             raise BelowMinimumVersion(src.dsn, src.server_version)
     except (TypeError, psycopg2.ProgrammingError, psycopg2.OperationalError) as e:
         print(
@@ -801,7 +806,7 @@ def main():
 @click.argument('name', required=True)
 def create_replication_slot(name):
     '''Manually create a replication slot. Will be created on the source database.'''
-    src, _ = _ensure_connected()
+    src, _ = _ensure_connected(source_only=True)
 
     slot = ReplicationSlots(src).get(name)
 
@@ -816,7 +821,7 @@ def create_replication_slot(name):
 @click.argument('name', required=True)
 def drop_replication_slot(name):
     '''Manually drop a replication slot.'''
-    src, _ = _ensure_connected()
+    src, _ = _ensure_connected(source_only=True)
 
     slot = ReplicationSlots(src).get(name)
 
