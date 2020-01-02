@@ -22,6 +22,20 @@ Simply `pip install pglogicalmanager`.
 3. `source .venv/bin/activate`
 4. `pip install -e ".[dev]"`
 
+When developing inside the virtual environment, use
+
+```bash
+$ python -m pglogicalmanager
+```
+
+instead of
+
+```bash
+$ pglogicalmanager
+```
+
+for all commands.
+
 ### Configuration
 
 ```bash
@@ -83,5 +97,15 @@ This will also overwrite your `.env` configuration and change the source DSN to 
 #### Manually creating replication slots
 
 Creating replication slots is useful to tell your source (primary) to preserve WAL segments from the point of creation of the slot. The inheritent danger is running out of space on write-heavy systems, since WAL segments won't be cleaned up, and busy servers write a lot of WAL!
+
+```bash
+$ pglogicalmanager create-replication-slot test_slot
+```
+
+and see all current replication slots with
+
+```bash
+$ pglogicalmanager list-replication-slots
+```
 
 TODO: Document use cases.

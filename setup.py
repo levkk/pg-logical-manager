@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='pg-logical-manager',
-    version='0.3',
+    version='0.4',
     author='Lev Kokotov',
     author_email='lev.kokotov@instacart.com',
     description="View and manage logical subscriptions for a PostgreSQL cluster.",
