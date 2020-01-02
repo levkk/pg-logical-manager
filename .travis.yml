@@ -12,16 +12,14 @@ before_install:
 
   # Start second instance of Postgres
   - sudo mkdir /var/lib/postgresql2 && sudo chown postgres:postgres /var/lib/postgresql2
-  - ls /usr/lib/postgresql
-  - ls /usr/lib/postgresql/10
   - sudo su postgres -c '/usr/lib/postgresql/10/bin/initdb -D /var/lib/postgresql2'
-  - sudo su postgres -c '/usr/lib/postgresql/10/bin/pg_ctl -D /var/lib/postgresql2 -o "-p 5433" -l /var/log/postgresql2.log'
+  - sudo su postgres -c '/usr/lib/postgresql/10/bin/pg_ctl start -D /var/lib/postgresql2 -o "-p 5433" -l /var/log/postgresql2.log'
 script:
   - sudo su postgres -c "psql -c 'CREATE DATABASE src;'"
-  - sudo su postgres -c "psql -c 'CREATE DATABASE dest;'"
+  - sudo su postgres -c "psql postgres://localhost:5433 -c 'CREATE DATABASE dest;'"
   - sudo su postgres -c "psql src -c 'CREATE TABLE test (id serial);'"
   - sudo su postgres -c "psql dest -c 'CREATE TABLE test (id bigserial);'"
-  - python -m pglogicalmanager configure --source=postgres://localhost:5432/src --destination=postgres://localhost:5432/dest
+  - python -m pglogicalmanager configure --source=postgres://localhost:5432/src --destination=postgres://localhost:5433/dest
   - python -m pglogicalmanager list-subscriptions
   - python -m pglogicalmanager list-tables --source
   - python -m pglogicalmanager list-tables --destination
