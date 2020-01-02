@@ -316,8 +316,8 @@ class Subscription:
         self.dest = None
 
     @classmethod
-    def create(cls, src, dest, name, copy_data=False, enabled=True):
-        slot_name = f'{name}_slot'
+    def create(cls, src, dest, name, copy_data=False, enabled=True, replication_slot=None):
+        slot_name = replication_slot if replication_slot is not None else f'{name}_slot'
         publication_name = f'{name}_publication'
 
         ReplicationSlot.create(src, slot_name)
@@ -833,6 +833,13 @@ def drop_replication_slot(name):
 
 
 @main.command()
+def list_replication_slots():
+    src, _ = _ensure_connected(source_only=True)
+
+    ReplicationSlots(src).show()
+
+
+@main.command()
 def list_subscriptions():
     '''List all current subscriptions.'''
     src, dest = _ensure_connected()
@@ -843,10 +850,11 @@ def list_subscriptions():
 @click.argument('name')
 @click.option('--enabled/--disabled', default=True, help='Start the subscription right after creation. Default is yes.')
 @click.option('--copy-data/--no-copy', default=False, help='Copy all existing data from publisher to subscriber. Default is no.')
-def create_subscription(name, enabled, copy_data):
+@click.option('--replication-slot', required=False, help='Replication slot on the source to attach the subscription to.')
+def create_subscription(name, enabled, copy_data, replication_slot):
     '''Create a logical replication subscription.'''
     src, dest = _ensure_connected()
-    Subscription.create(src, dest, name, copy_data=copy_data, enabled=enabled)
+    Subscription.create(src, dest, name, copy_data=copy_data, enabled=enabled, replication_slot=replication_slot)
 
 
 @main.command()

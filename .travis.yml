@@ -26,6 +26,10 @@ script:
   - python -m pglogicalmanager drop-subscription test_sub
   - python -m pglogicalmanager create-replication-slot test_slot
   - python -m pglogicalmanager drop-replication-slot test_slot
+  - python -m pglogicalmanager create-replication-slot test_slot
+  - python -m pglogicalmanager create-subscription test_sub --replication-slot=test_slot
+  - python -m pglogicalmanager list-subscriptions
+  - python -m pglogicalmanager drop-subscription test_sub
   - pytest
 
 addons:
