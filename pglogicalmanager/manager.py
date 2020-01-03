@@ -13,8 +13,11 @@ import os
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
 __version__ = '0.4.2'
 
+# Put configuration in there
+DOTENV_PATH = os.path.expanduser('~/.pglogicalmanager')
+
 # Load environment variables from .env
-load_dotenv()
+load_dotenv(dotenv_path=DOTENV_PATH)
 
 # Cross-platform colors!
 colorama.init()
@@ -944,7 +947,7 @@ def reverse_subscription(name):
 
 
 def _write_config(source, destination):
-    with open('./.env', 'w') as file:
+    with open(DOTENV_PATH, 'w') as file:
         file.write(f'SOURCE_DB_DSN={source}\n')
         file.write(f'DEST_DB_DSN={destination}\n')
 
@@ -962,7 +965,7 @@ def reverse_configuration():
     '''Change source to destination and vice versa. Useful when debugging reversed subscriptions.'''
     src, dest = _ensure_connected()
     _write_config(dest.dsn, src.dsn)
-    load_dotenv(override=True)
+    load_dotenv(otenv_path=DOTENV_PATH, override=True)
     src, dest = _ensure_connected()
 
 
