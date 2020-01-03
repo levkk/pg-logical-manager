@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
-__version__ = '0.4.1'
+__version__ = '0.4.2'
 
 # Load environment variables from .env
 load_dotenv()
