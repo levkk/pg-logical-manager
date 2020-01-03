@@ -464,10 +464,12 @@ class Subscription:
             slot = ReplicationSlot(None)
             slot.name = 'NONE'
 
-        publication = Publications(src).get(row['subpublications'][0])
+        publication_name = row['subpublications'][0]
+
+        publication = Publications(src).get(publication_name)
 
         if publication is None:
-            raise Exception(f'No publication on destination {src.dsn} exists.')
+            print(f'No publication {publication_name} on destination {src.dsn} exists.')
 
         obj = cls()
         obj.name = row['subname']
