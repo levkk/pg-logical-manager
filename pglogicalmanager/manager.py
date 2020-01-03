@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 __author__ = 'Lev Kokotov <lev.kokotov@instacart.com>'
-__version__ = '0.4.1'
+__version__ = '0.4.2'
 
 # Load environment variables from .env
 load_dotenv()
@@ -464,10 +464,12 @@ class Subscription:
             slot = ReplicationSlot(None)
             slot.name = 'NONE'
 
-        publication = Publications(src).get(row['subpublications'][0])
+        publication_name = row['subpublications'][0]
+
+        publication = Publications(src).get(publication_name)
 
         if publication is None:
-            raise Exception(f'No publication on destination {src.dsn} exists.')
+            print(f'No publication {publication_name} on destination {src.dsn} exists.')
 
         obj = cls()
         obj.name = row['subname']
