@@ -904,8 +904,8 @@ def disable_subscription(name):
 @main.command()
 def list_replication_origins():
     '''Show all replication origins.'''
-    src, _ = _ensure_connected()
-    ReplicationOrigins(src).show()
+    _, dest = _ensure_connected()
+    ReplicationOrigins(dest).show()
 
 
 @main.command()
@@ -915,7 +915,7 @@ def list_replication_origins():
 def rewind_replication_origin(origin, subscription, lsn):
     '''Rewind logical subscription to LSN. Very dangerous.'''
     src, dest = _ensure_connected()
-    origin = ReplicationOrigins(src).get(origin)
+    origin = ReplicationOrigins(dest).get(origin)
     sub = Subscriptions(src, dest).get(subscription)
 
     if origin is None:
